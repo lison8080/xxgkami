@@ -189,7 +189,7 @@ UPDATE `cards` SET `duration` = 0 WHERE `duration` IS NULL OR `duration` <= 0;
 ## 📞 联系方式
 
 - 作者：小小怪
-- Email：support@example.com
+- Email：xxgyyds@vip.qq.com
 - GitHub：[@xiaoxiaoguai-yyds](https://github.com/xiaoxiaoguai-yyds)
 
 ## 📄 开源协议

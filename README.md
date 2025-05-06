@@ -186,12 +186,6 @@ UPDATE `cards` SET `duration` = 0 WHERE `duration` IS NULL OR `duration` <= 0;
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 提交 Pull Request
 
-## 📞 联系方式
-
-- 作者：小小怪
-- Email：xxgyyds@vip.qq.com
-- GitHub：[@xiaoxiaoguai-yyds](https://github.com/xiaoxiaoguai-yyds)
-
 ## 📄 开源协议
 
 本项目采用 MIT 协议开源，详见 [LICENSE](LICENSE) 文件。
@@ -200,39 +194,6 @@ UPDATE `cards` SET `duration` = 0 WHERE `duration` IS NULL OR `duration` <= 0;
 
 [![Star History Chart](https://api.star-history.com/svg?repos=xiaoxiaoguai-yyds/xxgkami&type=Date)](https://star-history.com/#xiaoxiaoguai-yyds/xxgkami&Date)
 
-## 🙏 鸣谢
-感谢所有为这个项目做出贡献的开发者！
-
-## 💝 友情赞助
-
-如果这个项目对您有帮助，欢迎赞助支持我们的开发工作！
-
-<div align="center">
-    <table>
-        <tr>
-            <td align="center">
-                <img src="https://www.xxg-yyds.com/img/wx.png" alt="微信赞助" width="300px">
-                <br>
-                <b>微信赞助</b>
-            </td>
-            <td align="center">
-                <img src="https://www.xxg-yyds.com/img/zfb.jpg" alt="支付宝赞助" width="300px">
-                <br>
-                <b>支付宝赞助</b>
-            </td>
-        </tr>
-    </table>
-</div>
-
-### 赞助说明
-
-- 赞助金额不限，随心随意
-- 赞助后可以在备注里留下您的称呼和留言
-- 所有赞助都将用于：
-  - 服务器维护费用
-  - 功能开发和优化
-  - 文档编写和维护
-  - 社区建设
 
 ### 其他支持方式
 

@@ -104,8 +104,3 @@ CREATE TABLE IF NOT EXISTS `api_keys` (
 
 ALTER TABLE `cards`
 ADD COLUMN `allow_reverify` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否允许同设备重复验证(1:允许, 0:不允许)' AFTER `verify_method`;
-
-ALTER TABLE cards 
-ADD COLUMN card_type ENUM('time', 'count') DEFAULT 'time',
-ADD COLUMN total_count INT DEFAULT 0,
-ADD COLUMN remaining_count INT DEFAULT 0;

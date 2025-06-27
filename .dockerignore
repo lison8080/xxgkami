@@ -1,0 +1,55 @@
+# Git 相关
+.git
+.gitignore
+.gitattributes
+
+# Docker 相关
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 文档
+README.md
+*.md
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 环境配置
+.env
+.env.local
+.env.example
+
+# 缓存文件
+cache/
+tmp/
+
+# 备份文件
+*.bak
+*.backup
+
+# 测试文件
+tests/
+test/
+*.test.php
+
+# 开发工具
+composer.phar
+phpunit.phar
+
+# 系统文件
+config.php
+install.lock

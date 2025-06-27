@@ -1,0 +1,27 @@
+services:
+  # 小小怪卡密验证系统 - All-in-One 版本
+  xxgkami-allinone:
+    build:
+      context: .
+      dockerfile: Dockerfile.allinone
+    container_name: xxgkami-allinone
+    restart: unless-stopped
+    ports:
+      - "19999:19999"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      # 数据持久化
+      - mysql_data_allinone:/var/lib/mysql
+      - ./assets/images:/var/www/html/assets/images
+      - ./logs:/var/log/nginx
+    networks:
+      - xxgkami-network
+
+volumes:
+  mysql_data_allinone:
+    driver: local
+
+networks:
+  xxgkami-network:
+    driver: bridge

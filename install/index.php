@@ -13,6 +13,27 @@ if(file_exists("../install.lock")){
     exit;
 }
 
+// 检测是否在容器环境中（通过检查预设的配置文件）
+$is_container_env = file_exists("../config.php");
+$container_db_config = null;
+
+if($is_container_env) {
+    // 读取容器预设的数据库配置
+    $config_content = file_get_contents("../config.php");
+    if(preg_match("/define\('DB_HOST',\s*'([^']+)'\);/", $config_content, $matches)) {
+        $container_db_config['host'] = $matches[1];
+    }
+    if(preg_match("/define\('DB_USER',\s*'([^']+)'\);/", $config_content, $matches)) {
+        $container_db_config['username'] = $matches[1];
+    }
+    if(preg_match("/define\('DB_PASS',\s*'([^']+)'\);/", $config_content, $matches)) {
+        $container_db_config['password'] = $matches[1];
+    }
+    if(preg_match("/define\('DB_NAME',\s*'([^']+)'\);/", $config_content, $matches)) {
+        $container_db_config['database'] = $matches[1];
+    }
+}
+
 // 每次直接访问install/index.php时重置安装步骤
 if($_SERVER['REQUEST_METHOD'] == 'GET'){
     $_SESSION['install_step'] = 1;
@@ -26,12 +47,23 @@ if(isset($_POST['next_step'])){
         error_log("Session step initialized to 1");
     }
     $_SESSION['install_step']++;
+
+    // 如果是容器环境，跳过数据库配置步骤（步骤3）
+    if($is_container_env && $_SESSION['install_step'] == 3) {
+        $_SESSION['install_step'] = 4; // 跳到管理员配置步骤
+    }
+
     error_log("Step increased to: " . $_SESSION['install_step']);
 }
 
 // 处理返回上一步
 if(isset($_POST['prev_step']) && isset($_SESSION['install_step']) && $_SESSION['install_step'] > 1){
     $_SESSION['install_step']--;
+
+    // 如果是容器环境，跳过数据库配置步骤（步骤3）
+    if($is_container_env && $_SESSION['install_step'] == 3) {
+        $_SESSION['install_step'] = 2; // 回到环境检测步骤
+    }
 }
 
 // 确保安装步骤有默认值
@@ -42,19 +74,29 @@ if(!isset($_SESSION['install_step'])) {
 // 处理安装请求
 if(isset($_POST['install'])){
     header('Content-Type: application/json; charset=utf-8');
-    
+
     $response = array(
         'status' => 'error',
         'message' => '',
         'step' => '',
         'sql' => ''
     );
-    
+
     try {
-        $host = trim($_POST['host']);
-        $username = trim($_POST['username']);
-        $password = trim($_POST['password']);
-        $database = trim($_POST['database']);
+        // 如果是容器环境，使用预设的数据库配置
+        if($is_container_env && $container_db_config) {
+            $host = $container_db_config['host'];
+            $username = $container_db_config['username'];
+            $password = $container_db_config['password'];
+            $database = $container_db_config['database'];
+        } else {
+            // 非容器环境，使用用户输入的配置
+            $host = trim($_POST['host']);
+            $username = trim($_POST['username']);
+            $password = trim($_POST['password']);
+            $database = trim($_POST['database']);
+        }
+
         $admin_user = trim($_POST['admin_user']);
         $admin_pass = password_hash(trim($_POST['admin_pass']), PASSWORD_DEFAULT);
         
@@ -529,9 +571,18 @@ function checkSystem() {
             <div class="step <?php echo $_SESSION['install_step'] == 2 ? 'active' : ($_SESSION['install_step'] > 2 ? 'completed' : ''); ?>">
                 <i class="fas fa-check-circle"></i> 环境检测
             </div>
-            <div class="step <?php echo $_SESSION['install_step'] == 3 ? 'active' : ''; ?>">
+            <?php if(!$is_container_env): ?>
+            <div class="step <?php echo $_SESSION['install_step'] == 3 ? 'active' : ($_SESSION['install_step'] > 3 ? 'completed' : ''); ?>">
+                <i class="fas fa-database"></i> 数据库配置
+            </div>
+            <div class="step <?php echo $_SESSION['install_step'] == 4 ? 'active' : ''; ?>">
                 <i class="fas fa-cog"></i> 系统安装
             </div>
+            <?php else: ?>
+            <div class="step <?php echo $_SESSION['install_step'] == 4 ? 'active' : ''; ?>">
+                <i class="fas fa-cog"></i> 系统安装
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -614,8 +665,8 @@ function checkSystem() {
         console.log('All passed: <?php echo $all_passed ? 'true' : 'false'; ?>');
         </script>
         
-        <?php else: ?>
-        <!-- 步骤3：数据库配置 -->
+        <?php elseif($_SESSION['install_step'] == 3 && !$is_container_env): ?>
+        <!-- 步骤3：数据库配置（仅非容器环境） -->
         <h2>数据库配置</h2>
         <div class="alert alert-info">
             <h4>安装说明：</h4>
@@ -667,6 +718,59 @@ function checkSystem() {
             </div>
         </form>
 
+        <?php else: ?>
+        <!-- 步骤4：管理员配置（容器环境）或最终安装步骤 -->
+        <h2><?php echo $is_container_env ? '管理员配置' : '系统安装'; ?></h2>
+
+        <?php if($is_container_env): ?>
+        <div class="alert alert-info">
+            <h4>容器环境检测：</h4>
+            <ul>
+                <li>✅ 检测到您正在使用Docker容器部署</li>
+                <li>✅ 数据库已自动配置：<?php echo $container_db_config['database']; ?></li>
+                <li>✅ 数据库连接已就绪，无需手动配置</li>
+                <li>🔧 请设置管理员账号以完成安装</li>
+            </ul>
+        </div>
+        <?php endif; ?>
+
+        <?php if(isset($error)) echo "<div class='error'>$error</div>"; ?>
+        <form method="POST" id="install-form">
+            <?php if(!$is_container_env): ?>
+            <!-- 非容器环境显示完整的数据库配置 -->
+            <div class="form-group">
+                <label>数据库地址：</label>
+                <input type="text" name="host" value="localhost" required>
+            </div>
+            <div class="form-group">
+                <label>数据库用户名：</label>
+                <input type="text" name="username" required>
+            </div>
+            <div class="form-group">
+                <label>数据库密码：</label>
+                <input type="password" name="password">
+            </div>
+            <div class="form-group">
+                <label>数据库名：</label>
+                <input type="text" name="database" required>
+            </div>
+            <?php endif; ?>
+
+            <!-- 管理员配置（所有环境都需要） -->
+            <div class="form-group">
+                <label>管理员用户名：</label>
+                <input type="text" name="admin_user" required>
+            </div>
+            <div class="form-group">
+                <label>管理员密码：</label>
+                <input type="password" name="admin_pass" required>
+            </div>
+            <div class="button-group">
+                <button type="submit" name="prev_step" class="prev-btn">上一步</button>
+                <button type="submit" name="install" id="install-btn">开始安装</button>
+            </div>
+        </form>
+
         <div class="install-progress" id="install-progress">
             <div class="progress-bar">
                 <div class="progress-bar-fill" id="progress-bar-fill"></div>
@@ -676,9 +780,11 @@ function checkSystem() {
                 <div class="install-step" data-step="1">
                     <span class="step-icon">○</span>连接数据库
                 </div>
+                <?php if(!$is_container_env): ?>
                 <div class="install-step" data-step="2">
                     <span class="step-icon">○</span>创建数据库
                 </div>
+                <?php endif; ?>
                 <div class="install-step" data-step="3">
                     <span class="step-icon">○</span>创建数据表
                 </div>

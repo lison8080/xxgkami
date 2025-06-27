@@ -49,28 +49,79 @@
 
 ## 🚀 快速开始
 
-### 环境要求
+### 🐳 Docker 部署（推荐）
+
+1. 克隆项目
+```bash
+git clone https://github.com/xiaoxiaoguai-yyds/xxgkami.git
+cd xxgkami
+```
+
+2. 构建并启动容器
+```bash
+# 构建镜像
+./build-database.sh build allinone
+
+# 启动服务
+./build-database.sh start allinone
+```
+
+3. 访问系统
+```
+http://localhost:19999
+```
+
+4. 完成安装
+- 系统会自动检测容器环境
+- 无需配置数据库连接
+- 只需设置管理员账号即可
+
+### 📁 传统部署
+
+如需传统部署，请确保环境满足：
 ```bash
 PHP >= 7.0
 MySQL >= 5.7
 Apache/Nginx
 ```
 
-### 安装步骤
+然后访问 `http://your-domain/install/` 按向导安装。
 
-1. 克隆项目
-```bash
-git clone https://github.com/xiaoxiaoguai-yyds/xxgkami.git
+## 📁 项目结构
+
 ```
-
-2. 上传到网站目录
-
-3. 访问安装页面
+xxgkami/
+├── 📄 README.md                    # 项目说明文档
+├── 🐳 Dockerfile.allinone          # Docker镜像构建文件
+├── 🐳 docker-compose.allinone.yml  # Docker编排文件
+├── 🔧 build-database.sh            # 容器构建脚本
+├── 📱 index.php                    # 系统首页
+├── 🔐 admin.php                    # 管理员登录
+├── 🚪 logout.php                   # 退出登录
+├── ✅ verify.php                   # 卡密验证页面
+├── 🧪 quick_test.py                # API测试脚本
+├── 📂 api/                         # API接口目录
+│   └── verify.php                  # 卡密验证API
+├── 📂 home/                        # 管理后台
+│   ├── index.php                   # 后台首页
+│   ├── api_settings.php            # API设置
+│   ├── card_actions.php            # 卡密管理
+│   ├── settings.php                # 系统设置
+│   └── stats.php                   # 数据统计
+├── 📂 install/                     # 安装程序
+│   ├── index.php                   # 安装向导
+│   └── install.sql                 # 数据库结构
+├── 📂 assets/                      # 静态资源
+│   ├── css/                        # 样式文件
+│   └── images/                     # 图片资源
+├── 📂 docker/                      # Docker配置
+│   ├── nginx/                      # Nginx配置
+│   ├── php/                        # PHP配置
+│   ├── mysql/                      # MySQL配置
+│   ├── supervisor/                 # 进程管理
+│   └── scripts/                    # 启动脚本
+└── 📂 logs/                        # 日志目录（运行时生成）
 ```
-http://your-domain/install/
-```
-
-4. 按照安装向导完成配置
 
 ## 📚 使用说明
 
@@ -168,6 +219,36 @@ UPDATE `cards` SET `duration` = 0 WHERE `duration` IS NULL OR `duration` <= 0;
 ```
 
 执行这些SQL语句后，您的数据库将支持新版本的所有功能，同时保留原有数据。
+
+## 🐳 容器管理
+
+### 常用命令
+
+```bash
+# 查看状态
+./build-database.sh status
+
+# 启动容器
+./build-database.sh start allinone
+
+# 停止容器
+./build-database.sh stop allinone
+
+# 重启容器
+./build-database.sh restart allinone
+
+# 查看日志
+sudo docker logs xxgkami-allinone -f
+
+# 进入容器
+sudo docker exec -it xxgkami-allinone bash
+```
+
+### 访问地址
+
+- **系统首页**: http://localhost:19999
+- **管理后台**: http://localhost:19999/admin.php
+- **API接口**: http://localhost:19999/api/verify.php
 
 ### 文件升级
 

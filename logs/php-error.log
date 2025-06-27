@@ -1,0 +1,48 @@
+[27-Jun-2025 17:34:04 Asia/Shanghai] Next step clicked. Current step: 1
+[27-Jun-2025 17:34:04 Asia/Shanghai] Step increased to: 2
+[27-Jun-2025 18:06:22 Asia/Shanghai] Next step clicked. Current step: 1
+[27-Jun-2025 18:06:22 Asia/Shanghai] Step increased to: 2
+[27-Jun-2025 18:06:23 Asia/Shanghai] Next step clicked. Current step: 2
+[27-Jun-2025 18:06:23 Asia/Shanghai] Step increased to: 3
+[27-Jun-2025 18:06:37 Asia/Shanghai] API Error: SQLSTATE[HY000] [2002] Permission denied
+[27-Jun-2025 18:13:05 Asia/Shanghai] Next step clicked. Current step: 1
+[27-Jun-2025 18:13:05 Asia/Shanghai] Step increased to: 2
+[27-Jun-2025 18:13:07 Asia/Shanghai] Next step clicked. Current step: 2
+[27-Jun-2025 18:13:07 Asia/Shanghai] Step increased to: 4
+[27-Jun-2025 18:32:14 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:32:14 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:33:38 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:33:38 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:33:53 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:33:53 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:34:00 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:34:00 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:36:57 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:37:40 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:43:35 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:44:04 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:44:53 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:45:07 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:45:07 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:45:22 Asia/Shanghai] API Status: 1
+[27-Jun-2025 18:45:22 Asia/Shanghai] API Status: 1
+[27-Jun-2025 19:50:48 Asia/Shanghai] Next step clicked. Current step: 1
+[27-Jun-2025 19:50:48 Asia/Shanghai] Step increased to: 2
+[27-Jun-2025 19:50:50 Asia/Shanghai] Next step clicked. Current step: 2
+[27-Jun-2025 19:50:50 Asia/Shanghai] Step increased to: 4
+[27-Jun-2025 19:58:05 Asia/Shanghai] Next step clicked. Current step: 1
+[27-Jun-2025 19:58:05 Asia/Shanghai] Step increased to: 2
+[27-Jun-2025 19:58:07 Asia/Shanghai] Next step clicked. Current step: 2
+[27-Jun-2025 19:58:07 Asia/Shanghai] Step increased to: 4
+[27-Jun-2025 19:59:10 Asia/Shanghai] API Status: 0
+[27-Jun-2025 19:59:10 Asia/Shanghai] API Status: 0
+[27-Jun-2025 19:59:48 Asia/Shanghai] API Status: 1
+[27-Jun-2025 19:59:48 Asia/Shanghai] API Status: 1
+[27-Jun-2025 19:59:54 Asia/Shanghai] API Status: 1
+[27-Jun-2025 19:59:54 Asia/Shanghai] API Status: 1
+[27-Jun-2025 19:59:57 Asia/Shanghai] API Status: 1
+[27-Jun-2025 19:59:57 Asia/Shanghai] API Status: 1
+[27-Jun-2025 20:03:52 Asia/Shanghai] Next step clicked. Current step: 1
+[27-Jun-2025 20:03:52 Asia/Shanghai] Step increased to: 2
+[27-Jun-2025 20:03:54 Asia/Shanghai] Next step clicked. Current step: 2
+[27-Jun-2025 20:03:54 Asia/Shanghai] Step increased to: 4

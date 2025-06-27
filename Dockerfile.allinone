@@ -1,0 +1,74 @@
+# 单容器集成版 - 包含 MySQL + Nginx + PHP-FPM
+FROM ubuntu:22.04
+
+# 设置环境变量
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+
+# 设置工作目录
+WORKDIR /var/www/html
+
+# 安装所有必要的软件包
+RUN apt-get update && apt-get install -y \
+    nginx \
+    php8.1-fpm \
+    php8.1-mysql \
+    php8.1-mbstring \
+    php8.1-gd \
+    php8.1-curl \
+    php8.1-xml \
+    php8.1-zip \
+    mysql-server \
+    supervisor \
+    curl \
+    wget \
+    netcat-traditional \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置时区
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 复制项目文件
+COPY . /var/www/html/
+
+# 设置文件权限
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html \
+    && chmod -R 777 /var/www/html/assets/images
+
+# 配置 MySQL
+RUN service mysql start \
+    && mysql -e "CREATE DATABASE IF NOT EXISTS xxgkami;" \
+    && mysql -e "CREATE USER IF NOT EXISTS 'xxgkami_user'@'localhost' IDENTIFIED BY 'Xxgkami123!';" \
+    && mysql -e "GRANT ALL PRIVILEGES ON xxgkami.* TO 'xxgkami_user'@'localhost';" \
+    && mysql -e "FLUSH PRIVILEGES;" \
+    && service mysql stop
+
+# 复制配置文件
+COPY docker/nginx/allinone.conf /etc/nginx/sites-available/default
+COPY docker/php/php-fpm-allinone.conf /etc/php/8.1/fpm/pool.d/www.conf
+COPY docker/php/php.ini /etc/php/8.1/fpm/php.ini
+COPY docker/supervisor/supervisord-allinone.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/mysql/my.cnf /etc/mysql/mysql.conf.d/mysqld.cnf
+
+# 复制启动脚本
+COPY docker/scripts/start-allinone.sh /start.sh
+RUN chmod +x /start.sh
+
+# 创建必要的目录
+RUN mkdir -p /var/log/nginx \
+    && mkdir -p /var/log/supervisor \
+    && mkdir -p /var/lib/php/sessions \
+    && mkdir -p /var/run/mysqld \
+    && chown mysql:mysql /var/run/mysqld
+
+# 暴露端口
+EXPOSE 19999
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:19999/ && mysqladmin ping -h localhost || exit 1
+
+# 启动命令
+CMD ["/start.sh"]

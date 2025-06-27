@@ -40,12 +40,22 @@ try {
 $headers = getallheaders();
 $api_key = '';
 
-// 优先从Header获取API密钥
-if(isset($headers['X-API-KEY'])) {
-    $api_key = $headers['X-API-KEY'];
-} 
+// 优先从Header获取API密钥（支持多种格式）
+$header_keys = ['X-API-KEY', 'X-Api-Key', 'x-api-key', 'HTTP_X_API_KEY'];
+foreach($header_keys as $key) {
+    if(isset($headers[$key])) {
+        $api_key = $headers[$key];
+        break;
+    }
+}
+
+// 如果Header中没有找到，尝试从$_SERVER获取
+if(empty($api_key) && isset($_SERVER['HTTP_X_API_KEY'])) {
+    $api_key = $_SERVER['HTTP_X_API_KEY'];
+}
+
 // 如果是GET请求且Header中没有API密钥，则从URL参数获取
-else if($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['api_key'])) {
+if(empty($api_key) && $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['api_key'])) {
     $api_key = $_GET['api_key'];
 }
 

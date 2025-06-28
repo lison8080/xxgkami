@@ -58,7 +58,7 @@ try {
     // 添加卡密 - 只在点击生成按钮时执行
     if($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_card']) && isset($_POST['action']) && $_POST['action'] == 'add'){
         $count = intval($_POST['count'] ?? 1);
-        $count = min(max($count, 1), 100); // 限制一次最多生成100个
+        $count = max($count, 1); // 确保至少生成1个，移除上限限制
         
         // 获取卡密类型
         $card_type = $_POST['card_type'] ?? 'time';
@@ -851,7 +851,7 @@ try {
                         <div class="form-row">
                             <div class="form-group">
                                 <label><i class="fas fa-list-ol"></i> 生成数量：</label>
-                                <input type="number" name="count" min="1" max="100" value="1" class="form-control">
+                                <input type="number" name="count" min="1" value="1" class="form-control">
                             </div>
                             <div class="form-group">
                                 <label><i class="fas fa-credit-card"></i> 卡密类型：</label>

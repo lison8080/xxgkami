@@ -13,7 +13,7 @@ def test_api():
     
     # 配置信息 - 请根据实际情况修改
     BASE_URL = "http://localhost:19999"
-    API_KEY = "37973705320b619f17902e75d7638519"  # 需要从后台获取
+    API_KEY = "c787d6e0d56633d06fb1c4c76dbdfbd2"  # 需要从后台获取
     
     print("🚀 小小怪卡密API快速测试")
     print("-" * 40)
@@ -22,7 +22,7 @@ def test_api():
     device_id = "34dd8a14-40a0-44e5-9eac-b0c68e87e148"
     
     # 测试数据
-    test_card = "5Pbuy6XY4SJnoqhUBEtp"  # 测试卡密
+    test_card = "8HEqOFhk2hncUOQA4OK1"  # 测试卡密
     
     # POST请求测试
     print("\n📤 POST请求测试:")

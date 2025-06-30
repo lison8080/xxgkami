@@ -532,6 +532,7 @@ if(isset($_GET['delete'])){
                 <h2>管理系统</h2>
             </div>
             <ul class="menu">
+                <li><a href="products.php"><i class="fas fa-box"></i>商品管理</a></li>
                 <li><a href="index.php"><i class="fas fa-key"></i>卡密管理</a></li>
                 <li><a href="stats.php"><i class="fas fa-chart-line"></i>数据统计</a></li>
                 <li class="active settings-nav">

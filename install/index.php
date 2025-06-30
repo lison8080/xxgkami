@@ -1,6 +1,12 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// 在处理安装请求时关闭错误显示，避免影响JSON响应
+if(isset($_POST['install'])){
+    error_reporting(0);
+    ini_set('display_errors', 0);
+} else {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+}
 
 session_start();
 
@@ -73,6 +79,10 @@ if(!isset($_SESSION['install_step'])) {
 
 // 处理安装请求
 if(isset($_POST['install'])){
+    // 清理输出缓冲区，确保没有之前的输出
+    if (ob_get_level()) {
+        ob_clean();
+    }
     header('Content-Type: application/json; charset=utf-8');
 
     $response = array(
@@ -130,7 +140,7 @@ if(isset($_POST['install'])){
         
         // 第三步：检查表是否存在
         $response['step'] = '检查数据表';
-        $tables = array('cards', 'admins', 'settings', 'slides', 'features');
+        $tables = array('products', 'cards', 'admins', 'settings', 'slides', 'features');
         $existingTables = array();
         
         foreach($tables as $table) {
@@ -157,7 +167,14 @@ if(isset($_POST['install'])){
         
         // 第四步：执行SQL文件
         $response['step'] = '创建数据表';
-        $sql_file = file_get_contents('install.sql');
+        $sql_file_path = __DIR__ . '/install.sql';
+        if (!file_exists($sql_file_path)) {
+            throw new Exception("安装SQL文件不存在: " . $sql_file_path);
+        }
+        $sql_file = file_get_contents($sql_file_path);
+        if ($sql_file === false) {
+            throw new Exception("无法读取安装SQL文件");
+        }
         
         // 分割SQL语句
         $queries = array_filter(array_map('trim', explode(';', $sql_file)));
@@ -206,8 +223,12 @@ define('DB_USER', '$username');
 define('DB_PASS', '$password');
 define('DB_NAME', '$database');
 ";
-        file_put_contents("../config.php", $config_content);
-        file_put_contents("../install.lock", date('Y-m-d H:i:s'));
+        if (file_put_contents("../config.php", $config_content) === false) {
+            throw new Exception("无法创建配置文件，请检查目录权限");
+        }
+        if (file_put_contents("../install.lock", date('Y-m-d H:i:s')) === false) {
+            throw new Exception("无法创建锁定文件，请检查目录权限");
+        }
         
         $response['status'] = 'success';
         $response['message'] = '安装成功';

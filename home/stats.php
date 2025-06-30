@@ -220,11 +220,11 @@ try {
                 <h2>管理系统</h2>
             </div>
             <ul class="menu">
+                <li><a href="products.php"><i class="fas fa-box"></i>商品管理</a></li>
                 <li><a href="index.php"><i class="fas fa-key"></i>卡密管理</a></li>
                 <li class="active"><a href="stats.php"><i class="fas fa-chart-line"></i>数据统计</a></li>
                 <li><a href="settings.php"><i class="fas fa-cog"></i>系统设置</a></li>
                 <li><a href="api_settings.php"><i class="fas fa-code"></i>API接口</a></li>
-                
                 <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i>退出登录</a></li>
             </ul>
         </div>

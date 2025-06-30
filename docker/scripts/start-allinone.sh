@@ -57,6 +57,17 @@ mysql -e "FLUSH PRIVILEGES;" || true
 if [ -f "/var/www/html/install/install.sql" ] && [ ! -f "/var/www/html/install.lock" ]; then
     echo "📊 导入初始数据库结构..."
     mysql xxgkami < /var/www/html/install/install.sql || true
+
+    # 创建默认管理员账户
+    echo "👤 创建默认管理员账户..."
+    ADMIN_PASSWORD_HASH=$(php -r "echo password_hash('admin123', PASSWORD_DEFAULT);")
+    mysql xxgkami -e "INSERT INTO admins (username, password) VALUES ('admin', '$ADMIN_PASSWORD_HASH');" || true
+
+    # 创建安装锁定文件
+    echo "🔒 创建安装锁定文件..."
+    echo "$(date '+%Y-%m-%d %H:%M:%S')" > /var/www/html/install.lock
+    chown www-data:www-data /var/www/html/install.lock
+    echo "✅ 系统安装完成"
 fi
 
 # 创建配置文件
@@ -84,11 +95,13 @@ usermod -a -G mysql www-data
 chmod 755 /var/run/mysqld
 chown -R www-data:www-data /var/www/html
 
-# 检查是否已安装
-if [ ! -f "/var/www/html/install.lock" ]; then
-    echo "⚠️  系统尚未安装，请访问 http://your-ip:19999/install/ 进行安装"
+# 检查安装状态
+if [ -f "/var/www/html/install.lock" ]; then
+    echo "✅ 系统已安装完成"
+    echo "🔑 默认管理员账户: admin / admin123"
+    echo "🌐 管理后台地址: http://your-ip:19999/admin.php"
 else
-    echo "✅ 系统已安装"
+    echo "⚠️  系统尚未安装，请访问 http://your-ip:19999/install/ 进行安装"
 fi
 
 echo "🎉 启动完成！访问地址: http://your-ip:19999"

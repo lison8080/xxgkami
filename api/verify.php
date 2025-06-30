@@ -86,6 +86,7 @@ try {
 // 获取请求数据（支持GET和POST）
 $card_key = '';
 $device_id = '';
+$product_id = 0; // 商品ID，必须提供
 
 if($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 处理POST请求
@@ -93,14 +94,17 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
     if($input) {
         $card_key = isset($input['card_key']) ? trim($input['card_key']) : '';
         $device_id = isset($input['device_id']) ? trim($input['device_id']) : '';
+        $product_id = isset($input['product_id']) ? intval($input['product_id']) : 0;
     } else {
         $card_key = isset($_POST['card_key']) ? trim($_POST['card_key']) : '';
         $device_id = isset($_POST['device_id']) ? trim($_POST['device_id']) : '';
+        $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
     }
 } else if($_SERVER['REQUEST_METHOD'] === 'GET') {
     // 处理GET请求
     $card_key = isset($_GET['card_key']) ? trim($_GET['card_key']) : '';
     $device_id = isset($_GET['device_id']) ? trim($_GET['device_id']) : '';
+    $product_id = isset($_GET['product_id']) ? intval($_GET['product_id']) : 0;
 }
 
 if(empty($card_key)) {
@@ -121,6 +125,15 @@ if(empty($device_id)) {
     ], JSON_UNESCAPED_UNICODE));
 }
 
+if($product_id <= 0) {
+    http_response_code(400);
+    die(json_encode([
+        'code' => 1,
+        'message' => '请提供商品ID',
+        'data' => new stdClass()
+    ], JSON_UNESCAPED_UNICODE));
+}
+
 // 添加卡密加密函数
 function encryptCardKey($key) {
     $salt = 'xiaoxiaoguai_card_system_2024';
@@ -131,21 +144,38 @@ function encryptCardKey($key) {
 try {
     // 对输入的卡密进行加密
     $encrypted_key = encryptCardKey($card_key);
-    
-    // 首先检查卡密是否存在
-    $stmt = $conn->prepare("SELECT * FROM cards WHERE encrypted_key = ?");
-    $stmt->execute([$encrypted_key]);
+
+    // 直接查询指定商品下的卡密
+    $stmt = $conn->prepare("
+        SELECT c.*, p.name as product_name, p.status as product_status
+        FROM cards c
+        INNER JOIN products p ON c.product_id = p.id
+        WHERE c.encrypted_key = ? AND c.product_id = ?
+    ");
+    $stmt->execute([$encrypted_key, $product_id]);
     $card = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if(!$card) {
         http_response_code(400);
         die(json_encode([
             'code' => 1,
-            'message' => '无效的卡密',
+            'message' => '该商品中不存在此卡密',
             'data' => new stdClass()
         ], JSON_UNESCAPED_UNICODE));
     }
-    
+
+    // 检查商品是否被禁用
+    if($card['product_status'] == 0) {
+        http_response_code(403);
+        die(json_encode([
+            'code' => 7,
+            'message' => '关联商品已被禁用',
+            'data' => [
+                'product_name' => $card['product_name']
+            ]
+        ], JSON_UNESCAPED_UNICODE));
+    }
+
     // 检查卡密是否被禁用
     if($card['status'] == 2) {
         http_response_code(403);
@@ -196,7 +226,9 @@ try {
                             'remaining_count' => $remaining,
                             'total_count' => $card['total_count'],
                             'device_id' => $device_id,
-                            'allow_reverify' => $card['allow_reverify']
+                            'allow_reverify' => $card['allow_reverify'],
+                            'product_id' => $card['product_id'],
+                            'product_name' => $card['product_name'] ?: '默认商品'
                         ]
                     ], JSON_UNESCAPED_UNICODE);
                 } else {
@@ -209,10 +241,12 @@ try {
                         'status' => 1,
                         'use_time' => $card['use_time'],
                         'expire_time' => $card['expire_time'],
-                            'card_type' => $card['card_type'],
+                        'card_type' => $card['card_type'],
                         'duration' => $card['duration'],
                         'device_id' => $device_id,
-                        'allow_reverify' => $card['allow_reverify']
+                        'allow_reverify' => $card['allow_reverify'],
+                        'product_id' => $card['product_id'],
+                        'product_name' => $card['product_name'] ?: '默认商品'
                     ]
                 ], JSON_UNESCAPED_UNICODE);
                 }
@@ -246,7 +280,9 @@ try {
                         'expire_time' => $expire_time,
                         'card_type' => $card['card_type'],
                         'device_id' => $device_id,
-                        'allow_reverify' => $card['allow_reverify']
+                        'allow_reverify' => $card['allow_reverify'],
+                        'product_id' => $card['product_id'],
+                        'product_name' => $card['product_name'] ?: '默认商品'
                     ]
                 ];
                 
@@ -297,10 +333,12 @@ try {
                 'status' => 1,
                 'use_time' => date('Y-m-d H:i:s'),
                 'expire_time' => $expire_time,
-                    'card_type' => 'time',
+                'card_type' => 'time',
                 'duration' => $card['duration'],
                 'device_id' => $device_id,
-                'allow_reverify' => $allow_reverify_status
+                'allow_reverify' => $allow_reverify_status,
+                'product_id' => $card['product_id'],
+                'product_name' => $card['product_name'] ?: '默认商品'
             ]
         ], JSON_UNESCAPED_UNICODE);
         } else {
@@ -326,7 +364,9 @@ try {
                     'total_count' => $card['total_count'],
                     'remaining_count' => $remaining,
                     'device_id' => $device_id,
-                    'allow_reverify' => $allow_reverify_status
+                    'allow_reverify' => $allow_reverify_status,
+                    'product_id' => $card['product_id'],
+                    'product_name' => $card['product_name'] ?: '默认商品'
                 ]
             ], JSON_UNESCAPED_UNICODE);
         }

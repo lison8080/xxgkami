@@ -30,6 +30,39 @@ Thumbs.db
 
 # 环境配置
 .env
+
+# 测试文件
+test_*.py
+quick_test.py
+*_test.py
+
+# 备份文件
+backup/
+*.bak
+*.backup
+
+# 镜像文件
+image/
+*.tar
+
+# 部署脚本
+deploy.sh
+build-database.sh
+
+# 开发文档
+DEPLOY_README.md
+NEW_FEATURES_SUMMARY.md
+PERFORMANCE_OPTIMIZATION.md
+TESTING_CHECKLIST.md
+
+# Node.js (如果有)
+node_modules/
+npm-debug.log
+
+# Python (如果有)
+__pycache__/
+*.pyc
+*.pyo
 .env.local
 .env.example
 

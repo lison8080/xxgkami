@@ -498,6 +498,7 @@ try {
                 <h2>管理系统</h2>
             </div>
             <ul class="menu">
+                <li><a href="products.php"><i class="fas fa-box"></i>商品管理</a></li>
                 <li><a href="index.php"><i class="fas fa-key"></i>卡密管理</a></li>
                 <li><a href="stats.php"><i class="fas fa-chart-line"></i>数据统计</a></li>
                 <li><a href="settings.php"><i class="fas fa-cog"></i>系统设置</a></li>
@@ -606,10 +607,16 @@ try {
                                 <td>是</td>
                                 <td>GET参数或POST数据</td>
                             </tr>
+                            <tr>
+                                <td>product_id</td>
+                                <td>商品ID，用于验证卡密是否属于指定商品</td>
+                                <td>是</td>
+                                <td>GET参数或POST数据</td>
+                            </tr>
                         </table>
 
                         <h4>接口说明</h4>
-                        <p>本系统提供卡密验证功能，支持 POST 和 GET 两种请求方式。每个卡密只能绑定一个设备使用。</p>
+                        <p>本系统提供卡密+商品同时验证功能，支持 POST 和 GET 两种请求方式。必须同时提供卡密和商品ID，系统会验证该卡密是否属于指定商品。每个卡密只能绑定一个设备使用。</p>
                         
                         <h4>接口地址</h4>
                         <div class="info-item">
@@ -626,13 +633,14 @@ X-API-KEY: <?php echo htmlspecialchars($api_key); ?>
 
 {
     "card_key": "您的卡密",
-    "device_id": "设备唯一标识"
+    "device_id": "设备唯一标识",
+    "product_id": 1
 }</code></pre>
                         </div>
 
                         <h4>GET 方式调用</h4>
                         <div class="info-item">
-                            <pre><code>GET /api/verify.php?api_key=<?php echo htmlspecialchars($api_key); ?>&card_key=您的卡密&device_id=设备唯一标识</code></pre>
+                            <pre><code>GET /api/verify.php?api_key=<?php echo htmlspecialchars($api_key); ?>&card_key=您的卡密&device_id=设备唯一标识&product_id=1</code></pre>
                         </div>
 
                         <h4>返回示例</h4>

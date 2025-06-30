@@ -1,8 +1,27 @@
+-- 创建商品表
+CREATE TABLE IF NOT EXISTS `products` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `name` varchar(100) NOT NULL COMMENT '商品名称',
+    `description` text DEFAULT NULL COMMENT '商品描述',
+    `status` tinyint(1) NOT NULL DEFAULT '1' COMMENT '状态:0禁用,1启用',
+    `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `sort_order` int(11) NOT NULL DEFAULT '0' COMMENT '排序权重',
+    PRIMARY KEY (`id`),
+    KEY `status` (`status`),
+    KEY `sort_order` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 插入默认商品
+INSERT INTO `products` (`name`, `description`, `sort_order`) VALUES
+('默认商品', '系统默认商品，用于兼容旧版本卡密', 1);
+
 -- 创建卡密表
 CREATE TABLE IF NOT EXISTS `cards` (
     `id` int(11) NOT NULL AUTO_INCREMENT,
     `card_key` varchar(32) NOT NULL COMMENT '原始卡密',
     `encrypted_key` varchar(40) NOT NULL COMMENT '加密后的卡密',
+    `product_id` int(11) NOT NULL DEFAULT '1' COMMENT '关联商品ID',
     `status` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0:未使用 1:已使用 2:已停用',
     `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `use_time` datetime DEFAULT NULL,
@@ -17,7 +36,11 @@ CREATE TABLE IF NOT EXISTS `cards` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `card_key` (`card_key`),
     UNIQUE KEY `encrypted_key` (`encrypted_key`),
-    KEY `device_id` (`device_id`)
+    KEY `device_id` (`device_id`),
+    KEY `product_id` (`product_id`),
+    KEY `status` (`status`),
+    KEY `create_time` (`create_time`),
+    FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 创建管理员表

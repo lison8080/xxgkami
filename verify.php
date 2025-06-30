@@ -49,8 +49,13 @@ try {
                 $card_msg = array('type' => 'error', 'msg' => '请输入卡密');
                 $debug_info .= "错误: 卡密为空\n";
             } else {
-                // 检查卡密是否存在
-                $stmt = $conn->prepare("SELECT * FROM cards WHERE card_key = ?");
+                // 检查卡密是否存在，同时获取商品信息
+                $stmt = $conn->prepare("
+                    SELECT c.*, p.name as product_name, p.status as product_status
+                    FROM cards c
+                    LEFT JOIN products p ON c.product_id = p.id
+                    WHERE c.card_key = ?
+                ");
                 $stmt->execute([$card_key]);
                 $card = $stmt->fetch(PDO::FETCH_ASSOC);
                 $debug_info .= "查询结果: ".($card ? "找到卡密" : "未找到卡密")."\n";

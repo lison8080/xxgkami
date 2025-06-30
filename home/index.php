@@ -49,6 +49,10 @@ try {
     $conn = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME, DB_USER, DB_PASS);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+    // 获取商品列表
+    $products_stmt = $conn->query("SELECT id, name FROM products WHERE status = 1 ORDER BY sort_order ASC, id ASC");
+    $products = $products_stmt->fetchAll(PDO::FETCH_ASSOC);
+
     // 获取统计数据
     $total = $conn->query("SELECT COUNT(*) FROM cards")->fetchColumn();
     $used = $conn->query("SELECT COUNT(*) FROM cards WHERE status = 1")->fetchColumn();
@@ -84,10 +88,20 @@ try {
             $remaining_count = $total_count;
         }
         
+        // 获取商品ID
+        $product_id = intval($_POST['product_id'] ?? 1);
+
+        // 验证商品是否存在且启用
+        $product_check = $conn->prepare("SELECT COUNT(*) FROM products WHERE id = ? AND status = 1");
+        $product_check->execute([$product_id]);
+        if($product_check->fetchColumn() == 0) {
+            $product_id = 1; // 如果商品不存在或被禁用，使用默认商品
+        }
+
         // 获取是否允许重复验证的设置
         $allow_reverify = isset($_POST['allow_reverify']) && $_POST['allow_reverify'] == '1' ? 1 : 0;
 
-        $stmt = $conn->prepare("INSERT INTO cards (card_key, encrypted_key, duration, allow_reverify, card_type, total_count, remaining_count) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO cards (card_key, encrypted_key, product_id, duration, allow_reverify, card_type, total_count, remaining_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         
         for($i = 0; $i < $count; $i++){
             do {
@@ -96,7 +110,7 @@ try {
                 $check->execute([$key['encrypted']]);
             } while($check->fetchColumn() > 0);
             
-            $stmt->execute([$key['original'], $key['encrypted'], $duration, $allow_reverify, $card_type, $total_count, $remaining_count]);
+            $stmt->execute([$key['original'], $key['encrypted'], $product_id, $duration, $allow_reverify, $card_type, $total_count, $remaining_count]);
         }
         
         $success = "成功生成 {$count} 个卡密";
@@ -125,16 +139,75 @@ try {
         $limit = 20;
     }
 
+    // 获取筛选参数
+    $filter_product = isset($_GET['filter_product']) ? intval($_GET['filter_product']) : 0;
+    $filter_status = isset($_GET['filter_status']) ? intval($_GET['filter_status']) : -1;
+    $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : '';
+    $filter_date_start = isset($_GET['filter_date_start']) ? $_GET['filter_date_start'] : '';
+    $filter_date_end = isset($_GET['filter_date_end']) ? $_GET['filter_date_end'] : '';
+
+    // 构建WHERE条件
+    $where_conditions = [];
+    $params = [];
+
+    if($filter_product > 0) {
+        $where_conditions[] = "c.product_id = ?";
+        $params[] = $filter_product;
+    }
+
+    if($filter_status >= 0) {
+        $where_conditions[] = "c.status = ?";
+        $params[] = $filter_status;
+    }
+
+    if(!empty($filter_type)) {
+        $where_conditions[] = "c.card_type = ?";
+        $params[] = $filter_type;
+    }
+
+    if(!empty($filter_date_start)) {
+        $where_conditions[] = "DATE(c.create_time) >= ?";
+        $params[] = $filter_date_start;
+    }
+
+    if(!empty($filter_date_end)) {
+        $where_conditions[] = "DATE(c.create_time) <= ?";
+        $params[] = $filter_date_end;
+    }
+
+    $where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
+
     $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
     $offset = ($page - 1) * $limit;
-    
-    $stmt = $conn->query("SELECT COUNT(*) FROM cards");
+
+    // 获取总数
+    $count_sql = "SELECT COUNT(*) FROM cards c LEFT JOIN products p ON c.product_id = p.id $where_clause";
+    $stmt = $conn->prepare($count_sql);
+    $stmt->execute($params);
     $total = $stmt->fetchColumn();
     $total_pages = ceil($total / $limit);
-    
-    $stmt = $conn->prepare("SELECT * FROM cards ORDER BY id DESC LIMIT ? OFFSET ?");
-    $stmt->bindValue(1, $limit, PDO::PARAM_INT);
-    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+
+    // 获取数据
+    $data_sql = "
+        SELECT c.*, p.name as product_name
+        FROM cards c
+        LEFT JOIN products p ON c.product_id = p.id
+        $where_clause
+        ORDER BY c.create_time DESC, c.id DESC
+        LIMIT ? OFFSET ?
+    ";
+    $stmt = $conn->prepare($data_sql);
+
+    // 绑定筛选参数
+    $param_index = 1;
+    foreach($params as $param) {
+        $stmt->bindValue($param_index++, $param);
+    }
+
+    // 绑定LIMIT和OFFSET参数为整数类型
+    $stmt->bindValue($param_index++, $limit, PDO::PARAM_INT);
+    $stmt->bindValue($param_index, $offset, PDO::PARAM_INT);
+
     $stmt->execute();
     $cards = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -428,6 +501,213 @@ try {
             background: #2ecc71;
         }
 
+        .product-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            background: #9b59b6;
+            color: white;
+        }
+
+        .filter-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+
+        .filter-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            min-width: 150px;
+            flex: 1;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .filter-group .form-control {
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .admin-wrapper {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 10px;
+            }
+
+            .filter-row {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .filter-group {
+                min-width: auto;
+            }
+
+            .export-controls {
+                flex-direction: column;
+                gap: 10px;
+                align-items: stretch;
+            }
+
+            .table-responsive {
+                font-size: 12px;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 2% auto;
+            }
+        }
+
+        /* 改进的按钮样式 */
+        .btn {
+            transition: all 0.3s ease;
+            border: none;
+            font-weight: 500;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* 改进的表格样式 */
+        .table-responsive table {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+
+
+        .table-responsive td {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .table-responsive tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .table-responsive tr:hover {
+            background-color: #e3f2fd;
+            transform: scale(1.01);
+            transition: all 0.2s ease;
+        }
+
+        /* 改进的徽章样式 */
+        .status-badge, .product-badge, .duration-badge {
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* 改进的表单样式 */
+        .form-control {
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        /* 改进的卡片样式 */
+        .card {
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 改进的分页样式 */
+        .pagination a {
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            margin: 0 2px;
+        }
+
+        .pagination a:hover {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .pagination a.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
         /* 卡密管理页面补充样式 */
         .export-controls {
             display: flex;
@@ -487,6 +767,8 @@ try {
         .table-responsive th {
             background: #f8f9fa;
             font-weight: 600;
+            color: #333;
+            text-align: center;
         }
 
         .pagination-container {
@@ -796,6 +1078,7 @@ try {
                 <h2>管理系统</h2>
             </div>
             <ul class="menu">
+                <li><a href="products.php"><i class="fas fa-box"></i>商品管理</a></li>
                 <li class="active"><a href="index.php"><i class="fas fa-key"></i>卡密管理</a></li>
                 <li><a href="stats.php"><i class="fas fa-chart-line"></i>数据统计</a></li>
                 <li><a href="settings.php"><i class="fas fa-cog"></i>系统设置</a></li>
@@ -860,6 +1143,14 @@ try {
                                     <option value="count">次数卡密</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-box"></i> 关联商品：</label>
+                                <select name="product_id" class="form-control">
+                                    <?php foreach($products as $product): ?>
+                                    <option value="<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                             <div class="form-group time-duration">
                                 <label><i class="fas fa-clock"></i> 使用时长：</label>
                                 <select name="duration" class="form-control">
@@ -915,6 +1206,9 @@ try {
                         <button type="button" class="btn btn-primary" onclick="exportSelected()">
                             <i class="fas fa-file-excel"></i> 导出Excel
                         </button>
+                        <button type="button" class="btn btn-success" onclick="showTxtExportModal()">
+                            <i class="fas fa-file-alt"></i> 导出TXT
+                        </button>
                         <button type="button" class="btn btn-danger" onclick="deleteSelected()">
                             <i class="fas fa-trash"></i> 批量删除
                         </button>
@@ -923,6 +1217,64 @@ try {
                             <span>全选</span>
                         </label>
                     </div>
+                </div>
+
+                <!-- 筛选区域 -->
+                <div class="filter-section">
+                    <form method="GET" class="filter-form">
+                        <input type="hidden" name="limit" value="<?php echo $limit; ?>">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label><i class="fas fa-box"></i> 商品筛选：</label>
+                                <select name="filter_product" class="form-control">
+                                    <option value="0">全部商品</option>
+                                    <?php foreach($products as $product): ?>
+                                    <option value="<?php echo $product['id']; ?>" <?php echo $filter_product == $product['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($product['name']); ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label><i class="fas fa-info-circle"></i> 状态筛选：</label>
+                                <select name="filter_status" class="form-control">
+                                    <option value="-1">全部状态</option>
+                                    <option value="0" <?php echo $filter_status == 0 ? 'selected' : ''; ?>>未使用</option>
+                                    <option value="1" <?php echo $filter_status == 1 ? 'selected' : ''; ?>>已使用</option>
+                                    <option value="2" <?php echo $filter_status == 2 ? 'selected' : ''; ?>>已停用</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label><i class="fas fa-credit-card"></i> 类型筛选：</label>
+                                <select name="filter_type" class="form-control">
+                                    <option value="">全部类型</option>
+                                    <option value="time" <?php echo $filter_type == 'time' ? 'selected' : ''; ?>>时间卡密</option>
+                                    <option value="count" <?php echo $filter_type == 'count' ? 'selected' : ''; ?>>次数卡密</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label><i class="fas fa-calendar"></i> 创建时间：</label>
+                                <input type="date" name="filter_date_start" class="form-control" value="<?php echo htmlspecialchars($filter_date_start); ?>" placeholder="开始日期">
+                            </div>
+                            <div class="filter-group">
+                                <label><i class="fas fa-calendar"></i> 至：</label>
+                                <input type="date" name="filter_date_end" class="form-control" value="<?php echo htmlspecialchars($filter_date_end); ?>" placeholder="结束日期">
+                            </div>
+                            <div class="filter-group">
+                                <label>&nbsp;</label>
+                                <div class="filter-buttons">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-search"></i> 筛选
+                                    </button>
+                                    <a href="index.php" class="btn btn-secondary">
+                                        <i class="fas fa-times"></i> 清除
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
                 </div>
                 <div class="table-responsive">
                     <table>
@@ -933,6 +1285,7 @@ try {
                                 </th>
                                 <th>ID</th>
                                 <th>卡密</th>
+                                <th>关联商品</th>
                                 <th>状态</th>
                                 <th>类型</th>
                                 <th>有效期/剩余次数</th>
@@ -963,13 +1316,18 @@ try {
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <span class="status-badge <?php 
-                                        echo $card['status'] == 0 ? 'unused' : 
-                                            ($card['status'] == 1 ? 'used' : 'disabled'); 
+                                    <span class="product-badge">
+                                        <?php echo htmlspecialchars($card['product_name'] ?: '默认商品'); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge <?php
+                                        echo $card['status'] == 0 ? 'unused' :
+                                            ($card['status'] == 1 ? 'used' : 'disabled');
                                     ?>">
-                                        <?php 
-                                        echo $card['status'] == 0 ? '未使用' : 
-                                            ($card['status'] == 1 ? '已使用' : '已停用'); 
+                                        <?php
+                                        echo $card['status'] == 0 ? '未使用' :
+                                            ($card['status'] == 1 ? '已使用' : '已停用');
                                         ?>
                                     </span>
                                 </td>
@@ -1056,7 +1414,7 @@ try {
                     <div class="per-page-select">
                         <span>每页显示：</span>
                         <?php foreach($per_page_options as $option): ?>
-                        <a href="?limit=<?php echo $option; ?>" 
+                        <a href="?limit=<?php echo $option; ?><?php echo $filter_query; ?>"
                            class="per-page-option <?php echo $limit == $option ? 'active' : ''; ?>">
                             <?php echo $option; ?>条
                         </a>
@@ -1064,13 +1422,23 @@ try {
                     </div>
 
                     <!-- 分页链接 -->
+                    <?php
+                    // 构建筛选参数字符串
+                    $filter_params = [];
+                    if($filter_product > 0) $filter_params[] = "filter_product=$filter_product";
+                    if($filter_status >= 0) $filter_params[] = "filter_status=$filter_status";
+                    if(!empty($filter_type)) $filter_params[] = "filter_type=$filter_type";
+                    if(!empty($filter_date_start)) $filter_params[] = "filter_date_start=$filter_date_start";
+                    if(!empty($filter_date_end)) $filter_params[] = "filter_date_end=$filter_date_end";
+                    $filter_query = !empty($filter_params) ? '&' . implode('&', $filter_params) : '';
+                    ?>
                     <?php if($total_pages > 1): ?>
                     <div class="pagination">
                         <?php if($page > 1): ?>
-                            <a href="?page=1&limit=<?php echo $limit; ?>" title="首页">
+                            <a href="?page=1&limit=<?php echo $limit; ?><?php echo $filter_query; ?>" title="首页">
                                 <i class="fas fa-angle-double-left"></i>
                             </a>
-                            <a href="?page=<?php echo ($page-1); ?>&limit=<?php echo $limit; ?>" title="上一页">
+                            <a href="?page=<?php echo ($page-1); ?>&limit=<?php echo $limit; ?><?php echo $filter_query; ?>" title="上一页">
                                 <i class="fas fa-angle-left"></i>
                             </a>
                         <?php endif; ?>
@@ -1085,7 +1453,7 @@ try {
                         
                         for($i = $start; $i <= $end; $i++): 
                         ?>
-                            <a href="?page=<?php echo $i; ?>&limit=<?php echo $limit; ?>" 
+                            <a href="?page=<?php echo $i; ?>&limit=<?php echo $limit; ?><?php echo $filter_query; ?>"
                                <?php if($i == $page) echo 'class="active"'; ?>>
                                 <?php echo $i; ?>
                             </a>
@@ -1097,10 +1465,10 @@ try {
                         ?>
 
                         <?php if($page < $total_pages): ?>
-                            <a href="?page=<?php echo ($page+1); ?>&limit=<?php echo $limit; ?>" title="下一页">
+                            <a href="?page=<?php echo ($page+1); ?>&limit=<?php echo $limit; ?><?php echo $filter_query; ?>" title="下一页">
                                 <i class="fas fa-angle-right"></i>
                             </a>
-                            <a href="?page=<?php echo $total_pages; ?>&limit=<?php echo $limit; ?>" title="末页">
+                            <a href="?page=<?php echo $total_pages; ?>&limit=<?php echo $limit; ?><?php echo $filter_query; ?>" title="末页">
                                 <i class="fas fa-angle-double-right"></i>
                             </a>
                         <?php endif; ?>
@@ -1268,12 +1636,13 @@ try {
                     return {
                         'ID': row.cells[1].textContent,
                         '卡密': checkbox.value,
+                        '关联商品': row.querySelector('.product-badge').textContent.trim(),
                         '状态': row.querySelector('.status-badge').textContent.trim(),
                         '有效期': row.querySelector('.duration-badge').textContent.trim(),
-                        '使用时间': row.cells[5].textContent.trim(),
-                        '到期时间': row.cells[6].textContent.trim(),
-                        '创建时间': row.cells[7].textContent.trim(),
-                        '设备ID': row.cells[8].textContent.trim()  // 添加设备ID列
+                        '使用时间': row.cells[6].textContent.trim(),
+                        '到期时间': row.cells[7].textContent.trim(),
+                        '创建时间': row.cells[8].textContent.trim(),
+                        '设备ID': row.cells[9].textContent.trim()
                     };
                 });
                 
@@ -1708,12 +2077,695 @@ try {
         window.onclick = function(event) {
             const expireTimeModal = document.getElementById('editExpireTimeModal');
             const countModal = document.getElementById('editCountModal');
+            const txtExportModal = document.getElementById('txtExportModal');
+
             if (event.target === expireTimeModal) {
                 expireTimeModal.style.display = 'none';
             } else if (event.target === countModal) {
                 countModal.style.display = 'none';
+            } else if (event.target === txtExportModal) {
+                txtExportModal.style.display = 'none';
             }
         }
+
+        // TXT导出相关函数
+        function showTxtExportModal() {
+            updateSelectedCount();
+            document.getElementById('txtExportModal').style.display = 'block';
+            // 添加动画效果
+            const modal = document.getElementById('txtExportModal');
+            modal.style.opacity = '0';
+            modal.style.display = 'block';
+            setTimeout(() => {
+                modal.style.opacity = '1';
+            }, 10);
+
+            // 添加导出数量选项的事件监听器
+            const exportCountRadios = document.querySelectorAll('input[name="exportCount"]');
+            exportCountRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const customCountInput = document.getElementById('customCountInput');
+                    const exportTip = document.getElementById('exportTip');
+
+                    if (this.value === 'custom') {
+                        customCountInput.style.display = 'block';
+                        exportTip.textContent = '请输入要导出的数量';
+                    } else {
+                        customCountInput.style.display = 'none';
+                        if (this.value === 'selected') {
+                            exportTip.textContent = '将导出选中的卡密';
+                        } else if (this.value === 'filtered') {
+                            exportTip.textContent = '将导出当前筛选结果中的所有卡密';
+                        }
+                    }
+                });
+            });
+        }
+
+        function closeTxtExportModal() {
+            const modal = document.getElementById('txtExportModal');
+            modal.style.opacity = '0';
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+            document.getElementById('selectedCount').textContent = checkboxes.length;
+        }
+
+        // 监听复选框变化更新选中数量
+        document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('card-checkbox')) {
+                    updateSelectedCount();
+                }
+            });
+        });
+
+        function exportTxt() {
+            const exportBtn = document.getElementById('exportBtn');
+            const originalText = exportBtn.innerHTML;
+
+            try {
+                // 设置按钮为加载状态
+                exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 导出中...';
+                exportBtn.disabled = true;
+
+                const fileName = document.getElementById('txtFileName').value.trim() || '卡密列表';
+                const exportCount = document.querySelector('input[name="exportCount"]:checked').value;
+                const exportFormat = document.querySelector('input[name="exportFormat"]:checked').value;
+                const selectedFields = Array.from(document.querySelectorAll('input[name="exportFields"]:checked')).map(cb => cb.value);
+
+                console.log('导出参数:', { fileName, exportCount, exportFormat, selectedFields });
+
+                if (selectedFields.length === 0) {
+                    alert('请至少选择一个导出字段！');
+                    exportBtn.innerHTML = originalText;
+                    exportBtn.disabled = false;
+                    return;
+                }
+
+                let cardsData = [];
+
+                if (exportCount === 'selected') {
+                    const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+                    console.log('选中的复选框数量:', checkboxes.length);
+
+                    if (checkboxes.length === 0) {
+                        alert('请先选择要导出的卡密！');
+                        return;
+                    }
+
+                    cardsData = Array.from(checkboxes).map(checkbox => {
+                        const row = checkbox.closest('tr');
+                        return extractRowData(row);
+                    });
+                } else if (exportCount === 'filtered') {
+                    // 获取当前页面所有卡密数据
+                    const allRows = document.querySelectorAll('tbody tr');
+                    console.log('当前页面行数:', allRows.length);
+                    cardsData = Array.from(allRows).map(row => extractRowData(row));
+
+                    // 如果需要导出所有筛选结果，需要通过AJAX获取
+                    if (cardsData.length < <?php echo $total; ?>) {
+                        exportFilteredTxt(fileName, exportFormat, selectedFields);
+                        return;
+                    }
+                } else if (exportCount === 'custom') {
+                    const customCount = parseInt(document.getElementById('customCount').value);
+                    if (!customCount || customCount <= 0) {
+                        alert('请输入有效的导出数量！');
+                        return;
+                    }
+
+                    const allRows = document.querySelectorAll('tbody tr');
+                    cardsData = Array.from(allRows).slice(0, customCount).map(row => extractRowData(row));
+
+                    // 如果当前页面数据不够，需要通过AJAX获取
+                    if (cardsData.length < customCount) {
+                        exportCustomTxt(fileName, exportFormat, selectedFields, customCount);
+                        return;
+                    }
+                }
+
+                console.log('提取的卡密数据:', cardsData);
+                generateTxtFile(cardsData, fileName, exportFormat, selectedFields);
+            } catch (error) {
+                console.error('导出过程中发生错误:', error);
+                alert('导出失败：' + error.message);
+                // 恢复按钮状态
+                exportBtn.innerHTML = originalText;
+                exportBtn.disabled = false;
+            }
+        }
+
+        function extractRowData(row) {
+            const cells = row.cells;
+            return {
+                card_key: row.querySelector('.card-checkbox').value,
+                product_name: cells[3].querySelector('.product-badge') ? cells[3].querySelector('.product-badge').textContent.trim() : cells[3].textContent.trim(),
+                status: cells[4].querySelector('.status-badge') ? cells[4].querySelector('.status-badge').textContent.trim() : cells[4].textContent.trim(),
+                card_type: cells[5].querySelector('.type-badge') ? cells[5].querySelector('.type-badge').textContent.trim() : cells[5].textContent.trim(),
+                duration: cells[6].querySelector('.duration-badge, .count-badge') ? cells[6].querySelector('.duration-badge, .count-badge').textContent.trim() : cells[6].textContent.trim(),
+                use_time: cells[7].textContent.trim(),
+                expire_time: cells[8].textContent.trim(),
+                create_time: cells[9].textContent.trim(),
+                device_id: cells[10].textContent.trim()
+            };
+        }
+
+        function generateTxtFile(cardsData, fileName, exportFormat, selectedFields) {
+            let content = '';
+
+            if (exportFormat === 'line') {
+                // 每行一个卡密
+                content = cardsData.map(card => card.card_key).join('\n');
+            } else {
+                // 详细信息格式
+                const headers = selectedFields.map(field => getFieldName(field));
+                content = headers.join('\t') + '\n';
+
+                cardsData.forEach(card => {
+                    const values = selectedFields.map(field => {
+                        let value = card[field] || '';
+                        // 处理特殊字段
+                        if (field === 'status') {
+                            value = value;
+                        } else if (field === 'card_type') {
+                            value = value.includes('时间') ? '时间卡密' : '次数卡密';
+                        }
+                        return value;
+                    });
+                    content += values.join('\t') + '\n';
+                });
+            }
+
+            // 创建并下载文件
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName.endsWith('.txt') ? fileName : fileName + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            // 恢复按钮状态
+            const exportBtn = document.getElementById('exportBtn');
+            exportBtn.innerHTML = '<i class="fas fa-download"></i> 导出';
+            exportBtn.disabled = false;
+
+            closeTxtExportModal();
+            alert('导出成功！');
+        }
+
+        function getFieldName(field) {
+            const fieldNames = {
+                'card_key': '卡密',
+                'product_name': '关联商品',
+                'status': '状态',
+                'card_type': '类型',
+                'duration': '有效期/次数',
+                'device_id': '绑定设备',
+                'create_time': '创建时间',
+                'use_time': '使用时间'
+            };
+            return fieldNames[field] || field;
+        }
+
+        function exportFilteredTxt(fileName, exportFormat, selectedFields) {
+            // 通过AJAX获取所有筛选结果
+            const params = new URLSearchParams(window.location.search);
+            params.set('action', 'export_filtered_txt');
+            params.set('format', exportFormat);
+            params.set('fields', selectedFields.join(','));
+
+            fetch('txt_export.php?' + params.toString())
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName.endsWith('.txt') ? fileName : fileName + '.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    closeTxtExportModal();
+                    alert('导出成功！');
+                })
+                .catch(error => {
+                    console.error('导出失败:', error);
+                    alert('导出失败，请重试！');
+                });
+        }
+
+        function exportCustomTxt(fileName, exportFormat, selectedFields, count) {
+            // 通过AJAX获取指定数量的数据
+            const params = new URLSearchParams(window.location.search);
+            params.set('action', 'export_custom_txt');
+            params.set('format', exportFormat);
+            params.set('fields', selectedFields.join(','));
+            params.set('count', count);
+
+            fetch('txt_export.php?' + params.toString())
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName.endsWith('.txt') ? fileName : fileName + '.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    closeTxtExportModal();
+                    alert('导出成功！');
+                })
+                .catch(error => {
+                    console.error('导出失败:', error);
+                    alert('导出失败，请重试！');
+                });
+        }
+
+        // 添加一些实用功能
+        document.addEventListener('DOMContentLoaded', function() {
+            // 自动保存筛选条件到localStorage
+            const filterForm = document.querySelector('.filter-form');
+            if (filterForm) {
+                const inputs = filterForm.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    // 从localStorage恢复值
+                    const savedValue = localStorage.getItem('filter_' + input.name);
+                    if (savedValue && !input.value) {
+                        input.value = savedValue;
+                    }
+
+                    // 保存值到localStorage
+                    input.addEventListener('change', function() {
+                        localStorage.setItem('filter_' + this.name, this.value);
+                    });
+                });
+            }
+
+            // 添加快捷键支持
+            document.addEventListener('keydown', function(e) {
+                // Ctrl+A 全选卡密
+                if (e.ctrlKey && e.key === 'a' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    const selectAllCheckbox = document.getElementById('selectAll');
+                    if (selectAllCheckbox) {
+                        selectAllCheckbox.checked = true;
+                        toggleSelectAll();
+                    }
+                }
+
+                // Ctrl+E 打开导出模态框
+                if (e.ctrlKey && e.key === 'e') {
+                    e.preventDefault();
+                    showTxtExportModal();
+                }
+
+                // ESC 关闭模态框
+                if (e.key === 'Escape') {
+                    const modals = document.querySelectorAll('.modal');
+                    modals.forEach(modal => {
+                        if (modal.style.display === 'block') {
+                            modal.style.display = 'none';
+                        }
+                    });
+                }
+            });
+
+            // 添加表格行点击选择功能
+            const tableRows = document.querySelectorAll('tbody tr');
+            tableRows.forEach(row => {
+                row.addEventListener('click', function(e) {
+                    if (e.target.type !== 'checkbox' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+                        const checkbox = this.querySelector('.card-checkbox');
+                        if (checkbox) {
+                            checkbox.checked = !checkbox.checked;
+                            updateSelectedCount();
+                        }
+                    }
+                });
+            });
+
+            // 添加工具提示
+            const tooltips = document.querySelectorAll('[title]');
+            tooltips.forEach(element => {
+                element.addEventListener('mouseenter', function() {
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'tooltip';
+                    tooltip.textContent = this.title;
+                    tooltip.style.cssText = `
+                        position: absolute;
+                        background: #333;
+                        color: white;
+                        padding: 5px 10px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        z-index: 1000;
+                        pointer-events: none;
+                        opacity: 0;
+                        transition: opacity 0.3s;
+                    `;
+                    document.body.appendChild(tooltip);
+
+                    const rect = this.getBoundingClientRect();
+                    tooltip.style.left = rect.left + 'px';
+                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 5) + 'px';
+
+                    setTimeout(() => tooltip.style.opacity = '1', 10);
+
+                    this.addEventListener('mouseleave', function() {
+                        tooltip.remove();
+                    }, { once: true });
+                });
+            });
+        });
+
+        // 添加表单验证
+        function validateForm(form) {
+            const requiredFields = form.querySelectorAll('[required]');
+            let isValid = true;
+
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    field.style.borderColor = '#dc3545';
+                    isValid = false;
+                } else {
+                    field.style.borderColor = '#28a745';
+                }
+            });
+
+            return isValid;
+        }
+
+        // 添加成功/错误消息显示
+        function showMessage(message, type = 'info') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `alert alert-${type}`;
+            messageDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+                min-width: 300px;
+                opacity: 0;
+                transform: translateX(100%);
+                transition: all 0.3s ease;
+            `;
+            messageDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                ${message}
+            `;
+
+            document.body.appendChild(messageDiv);
+
+            setTimeout(() => {
+                messageDiv.style.opacity = '1';
+                messageDiv.style.transform = 'translateX(0)';
+            }, 10);
+
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+                messageDiv.style.transform = 'translateX(100%)';
+                setTimeout(() => messageDiv.remove(), 300);
+            }, 3000);
+        }
     </script>
+
+    <!-- TXT导出模态框 -->
+    <div id="txtExportModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h4><i class="fas fa-file-alt"></i> 导出TXT文件</h4>
+                <button type="button" class="close" onclick="closeTxtExportModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label><i class="fas fa-file-signature"></i> 文件名称：</label>
+                    <input type="text" id="txtFileName" class="form-control" value="卡密列表" placeholder="请输入文件名">
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-sort-numeric-up"></i> 导出数量：</label>
+                    <div class="export-count-options">
+                        <label class="radio-option">
+                            <input type="radio" name="exportCount" value="selected" checked>
+                            <span>仅导出选中的卡密 (<span id="selectedCount">0</span>个)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="exportCount" value="filtered">
+                            <span>导出当前筛选结果 (<?php echo $total; ?>个)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="exportCount" value="custom">
+                            <span>自定义数量</span>
+                        </label>
+                    </div>
+                    <div id="customCountInput" style="display: none;">
+                        <input type="number" id="customCount" min="1" max="<?php echo $total; ?>" value="100" placeholder="请输入导出数量（1-<?php echo $total; ?>）">
+                        <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                            <i class="fas fa-info-circle"></i> 最多可导出 <?php echo $total; ?> 个卡密
+                        </small>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-list-check"></i> 导出字段：</label>
+                    <div class="export-fields">
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="card_key" checked>
+                            <span>卡密</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="product_name">
+                            <span>关联商品</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="status">
+                            <span>状态</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="card_type">
+                            <span>类型</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="duration">
+                            <span>有效期/次数</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="device_id">
+                            <span>绑定设备</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="create_time">
+                            <span>创建时间</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="exportFields" value="use_time">
+                            <span>使用时间</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-cog"></i> 导出格式：</label>
+                    <div class="export-format-options">
+                        <label class="radio-option">
+                            <input type="radio" name="exportFormat" value="line" checked>
+                            <span>每行一个卡密（仅卡密）</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="exportFormat" value="detailed">
+                            <span>详细信息（包含选中字段）</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div style="flex: 1; text-align: left; color: #666; font-size: 14px;">
+                    <i class="fas fa-info-circle"></i>
+                    <span id="exportTip">请选择导出选项后点击导出按钮</span>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="closeTxtExportModal()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button type="button" class="btn btn-success" onclick="exportTxt()" id="exportBtn">
+                    <i class="fas fa-download"></i> 导出
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* TXT导出模态框样式优化 */
+        #txtExportModal .modal-content {
+            max-width: 700px;
+            width: 90%;
+            margin: 3% auto;
+        }
+
+        #txtExportModal .modal-body {
+            max-height: 75vh;
+            overflow-y: auto;
+            padding: 25px;
+        }
+
+        #txtExportModal .form-group {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+        }
+
+        #txtExportModal .form-group label {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+        }
+
+        #txtExportModal .form-group label i {
+            color: #3498db;
+            font-size: 18px;
+        }
+
+        .export-count-options, .export-format-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .export-fields {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .radio-option, .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 12px 15px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background: white;
+            border: 2px solid #e9ecef;
+            font-weight: 500;
+        }
+
+        .radio-option:hover, .checkbox-option:hover {
+            background-color: #e3f2fd;
+            border-color: #3498db;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2);
+        }
+
+        .radio-option input:checked + span,
+        .checkbox-option input:checked + span {
+            color: #3498db;
+            font-weight: 600;
+        }
+
+        .radio-option input, .checkbox-option input {
+            margin: 0;
+            width: 18px;
+            height: 18px;
+            accent-color: #3498db;
+        }
+
+        #customCountInput {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        #customCountInput input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        #customCountInput input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        #txtFileName {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        #txtFileName:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+            transform: translateY(-1px);
+        }
+
+        #txtExportModal .modal-footer {
+            padding: 20px 25px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        #txtExportModal .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        #txtExportModal .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            #txtExportModal .modal-content {
+                width: 95%;
+                margin: 2% auto;
+            }
+
+            .export-fields {
+                grid-template-columns: 1fr;
+            }
+
+            #txtExportModal .modal-body {
+                padding: 20px;
+            }
+
+            #txtExportModal .form-group {
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+        }
+    </style>
 </body>
-</html> 
+</html>
